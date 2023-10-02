@@ -362,3 +362,53 @@ def _gr4j(prec, pet, x1, x2, x3, x4, ps0, rs0):
 
     return qtarray, qdarray, qrarray, gwarray, psarray, rsarray
 
+
+        // Potential inter catchment semi-exchange :
+        let groundwater_exchange = x2 * (states[1] / x3 - x5);
+        states[1] += uh2[0] * storage_fraction + groundwater_exchange;
+        if states[1] < 0. {states[1] = 0.;}
+
+        // Flow :
+        let rsf_p4 = (states[1] / x3).powf(4.0);
+        let rout_flow = states[1] * (1. - 1. / (1. + rsf_p4).powf(0.25));
+        let mut direct_flow = uh2[0] * (1.0 - storage_fraction) + groundwater_exchange;
+        if direct_flow < 0. {direct_flow = 0.};
+
+        states[1] -= rout_flow;
+        flow[t] = rout_flow + direct_flow;
+
+
+
+        // Potential inter catchment semi-exchange :
+        let groundwater_exchange = x2 * (states[1] / x3 - x5);
+        states[1] += uh1[0] * storage_fraction * (1.0 - exp_fraction) + groundwater_exchange;
+        if states[1] < 0. {states[1] = 0.;}
+
+        // Flow :
+        let rsf_p4 = (states[1] / x3).powf(4.0);
+        let rout_flow = states[1] * (1. - 1. / (1. + rsf_p4).powf(0.25));
+        states[1] -= rout_flow;
+        
+        // Exponential store :
+        states[2] += uh1[0] * storage_fraction * exp_fraction + groundwater_exchange;
+        let mut ar: f64 = states[2] / x6;
+        if ar > 33. {ar = 33.;}
+        if ar < -33. {ar = -33.;}
+
+        let mut exp_flow: f64 = 0.;
+        if ar > 7. {
+            exp_flow = states[2] + x6 / ar.exp();
+        }
+        else if ar < -7. {
+            exp_flow = x6 / ar.exp();
+        }
+        else {
+            exp_flow = x6 * (ar.exp() + 1.).ln();
+        }
+        states[2] -= exp_flow;
+
+        let mut direct_flow = uh2[0] * (1.0 - storage_fraction) + groundwater_exchange;
+        if direct_flow < 0. {direct_flow = 0.};
+
+        
+        flow[t] = rout_flow + direct_flow + exp_flow;

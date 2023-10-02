@@ -1,48 +1,43 @@
 # -*- coding: utf-8 -*-
 """
-modele du Genie Rural a 4 parametres Journalier (GR4j)
-
-Rain-Runoff Model
-
+Rural Engineering Model with 5 Daily Parameters (GR5J)
 
 Author:
-Saul Arciniega Esparza
-Hydrogeology Group, Faculty of Engineering,
-National Autonomous University of Mexico
-zaul.ae@gmail.com | sarciniegae@comunidad.unam.mx
+Andres Felipe Duque Pérez
+INGENEVO S.A.S
+andresfduque@gmail.com | aduquep@ingenevo.com.co
 
 Based on:
-Andrew MacDonald (andrew@maccas.net)
-https://github.com/amacd31/pygr4j
+Saul Arciniega Esparza
+https://gitlab.com/Zaul_AE/lumod
 
 Reference:
-Perrin, C. (2002). Vers une amélioration d'un modèle global pluie-débit au travers d'une approche comparative.
-La Houille Blanche, n°6/7, 84-91.
-Perrin, C., Michel, C., Andréassian, V. (2003). Improvement of a parsimonious model for streamflow simulation.
-Journal of Hydrology 279(1-4), 275-289.
-"""
 
+"""
 import math
 from math import tanh
+import warnings
 import numpy as np
 import pandas as pd
 import numba as nb
-from ..fluxes import pet_models
 from .base_model import BaseModel
-import warnings
+from ..fluxes import pet_models
 
 warnings.filterwarnings("ignore")
-
 
 # ==============================================================================
 # Main class
 # ==============================================================================
 
 class GR5J(BaseModel):
+    """GR5J Runoff Model
 
+    Args:
+        BaseModel (object): Base model object
+    """
     def __init__(self, area=100, lat=0, params=None):
         """
-        GR4J hydrological model for daily simulation
+        GR5J hydrological model for daily simulation
 
 
         Inputs:
@@ -74,6 +69,7 @@ class GR5J(BaseModel):
             "x2": 3.0,
             "x3": 200.0,
             "x4": 5.0,
+            "x5": 1.0,
         }
 
         if params is not None:
@@ -82,15 +78,16 @@ class GR5J(BaseModel):
     def __repr__(self):
         text = "\n______________GR4J structure______________\n"
         text += "Catchment properties:\n"
-        text += "    Area (km2): {:.3f}\n".format(self.area)
-        text += "    Latitude  : {:.4f}\n".format(self.lat)
+        text += f"    Area (km2): {self.area:.3f}\n"
+        text += f"    Latitude  : {self.lat:.4f}\n"
         text += "Model Parameters:\n"
-        text += "    x1  > Maximum production capacity (mm)     : {:.3f}\n".format(self.params["x1"])
-        text += "    x2  > Discharge parameter (mm)             : {:.3f}\n".format(self.params["x2"])
-        text += "    x3  > Routing maximum capacity (mm)        : {:.3f}\n".format(self.params["x3"])
-        text += "    x4  > Delay (days)                         : {:.3f}\n".format(self.params["x4"])
-        text += "    ps0 > Initial production storage (ps/x1)   : {:.3f}\n".format(self.params["ps0"])
-        text += "    rs0 > Initial routing storage (rs/x3)      : {:.3f}\n".format(self.params["rs0"])
+        text += f"    x1  > Maximum production capacity (mm)     : {self.params['x1']:.3f}\n"
+        text += f"    x2  > Discharge parameter (mm)             : {self.params['x2']:.3f}\n"
+        text += f"    x3  > Routing maximum capacity (mm)        : {self.params['x3']:.3f}\n"
+        text += f"    x4  > Delay (days)                         : {self.params['x4']:.3f}\n"
+        text += f"    x5  > groundwater exchange threshold (-)   : {self.params['x5']:.3f}\n"
+        text += f"    ps0 > Initial production storage (ps/x1)   : {self.params['ps0']:.3f}\n"
+        text += f"    rs0 > Initial routing storage (rs/x3)      : {self.params['rs0']:.3f}\n"
         return text
 
     def __str__(self):
@@ -98,16 +95,17 @@ class GR5J(BaseModel):
         x2 = self.params["x2"]
         x3 = self.params["x3"]
         x4 = self.params["x4"]
+        x5 = self.params["x5"]
         ps0 = self.params["ps0"]
         rs0 = self.params["rs0"]
-        text = f"GR4J(area={self.area:.2f},lat={self.lat:.3f},"
-        text += f"x1={x1:.3f},x2={x2:.3f},x3={x3:.3f},x4={x4:.3f},"
+        text = f"GR5J(area={self.area:.2f},lat={self.lat:.3f},"
+        text += f"x1={x1:.3f},x2={x2:.3f},x3={x3:.3f},x4={x4:.3f},x5={x5:.3f},"
         text += f"ps0={ps0:.3f},rs0={rs0:.3f})"
         return text
 
     def run(self, forcings, start=None, end=None, save_state=False, **kwargs):
         """
-        Run the GR4J model
+        Run the GR5J model
 
 
         Parameters
@@ -164,13 +162,14 @@ class GR5J(BaseModel):
             doy = forcings.index.dayofyear.values  # day of year
             pet = pet_models._pet_oudin(tmean, doy, self.lat)
 
-        simulations = _gr4j(
+        simulations = _gr5j(
             prec,
             pet,
             self.params["x1"],
             self.params["x2"],
             self.params["x3"],
             self.params["x4"],
+            self.params["x5"],
             self.params["ps0"],
             self.params["rs0"]
         )
@@ -288,7 +287,7 @@ def _compute_unitary_hydrograph(x4):
 @nb.jit(nopython=True)
 def _compute_hydrograph(rout_pat, ouh1, ouh2, uh1, uh2):
     """
-    Daily hydrpgraph for catchment routine
+    Daily hydrograph for catchment routine
     """
     for i in range(0, len(uh1) - 1):
         uh1[i] = uh1[i + 1] + ouh1[i] * rout_pat
@@ -302,9 +301,9 @@ def _compute_hydrograph(rout_pat, ouh1, ouh2, uh1, uh2):
 
 
 @nb.jit(nopython=True)
-def _compute_exchange(uh1, rout_sto, x2, x3):
+def _compute_exchange(uh1, rout_sto, x2, x3, x5):
     # groundwater exchange
-    gw_exc = x2 * (rout_sto / x3) ** 3.5
+    gw_exc = x2 * (rout_sto / x3 - x5)
     rout_sto = max(0, rout_sto + uh1[0] * 0.9 + gw_exc)
     return gw_exc, rout_sto
 
@@ -319,7 +318,7 @@ def _compute_discharge(uh2, gw_exc, rout_sto, x3):
 
 
 @nb.jit(nopython=True)
-def _gr4j(prec, pet, x1, x2, x3, x4, ps0, rs0):
+def _gr5j(prec, pet, x1, x2, x3, x4, x5, ps0, rs0):
 
     # Create empty arrays
     n = len(prec)
@@ -347,18 +346,17 @@ def _gr4j(prec, pet, x1, x2, x3, x4, ps0, rs0):
 
         uh1, uh2 = _compute_hydrograph(rout_pat, ouh1, ouh2, uh1, uh2)
 
-        gw_exc, rsto = _compute_exchange(uh1, rsto, x2, x3)
+        gw_exc, rsto = _compute_exchange(uh1, rsto, x2, x3, x5)
 
         qr, qd, rsto = _compute_discharge(uh2, gw_exc, rsto, x3)
         qt = qr + qd
 
         # Save outputs
-        qtarray[t] = qt  # total flow
-        qdarray[t] = qd  # runoff
-        qrarray[t] = qr  # baseflow
-        gwarray[t] = gw_exc  # groundwater exchange
+        qtarray[t] = qt         # total flow
+        qdarray[t] = qd         # runoff
+        qrarray[t] = qr         # baseflow
+        gwarray[t] = gw_exc     # groundwater exchange
         psarray[t] = psto / x1  # production storage
         rsarray[t] = rsto / x3  # routing storage
 
     return qtarray, qdarray, qrarray, gwarray, psarray, rsarray
-
