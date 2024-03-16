@@ -7,6 +7,11 @@ Saul Arciniega Esparza
 Hydrogeology Group, Faculty of Engineering,
 National Autonomous University of Mexico
 zaul.ae@gmail.com | sarciniegae@comunidad.unam.mx
+
+Modified by:
+Andres Duque Perez
+Universidad Nacional de Colombia, Sede Medellin
+andresfduque@gmail.com | aduquep@ingenevo.com.co
 """
 
 import os

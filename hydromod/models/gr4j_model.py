@@ -4,16 +4,14 @@ modele du Genie Rural a 4 parametres Journalier (GR4j)
 
 Rain-Runoff Model
 
-
 Author:
-Saul Arciniega Esparza
-Hydrogeology Group, Faculty of Engineering,
-National Autonomous University of Mexico
-zaul.ae@gmail.com | sarciniegae@comunidad.unam.mx
+Andres Felipe Duque Pérez
+INGENEVO S.A.S
+andresfduque@gmail.com | aduquep@ingenevo.com.co
 
 Based on:
-Andrew MacDonald (andrew@maccas.net)
-https://github.com/amacd31/pygr4j
+Saul Arciniega Esparza
+https://gitlab.com/Zaul_AE/lumod
 
 Reference:
 Perrin, C. (2002). Vers une amélioration d'un modèle global pluie-débit au travers d'une approche comparative.
@@ -39,7 +37,11 @@ warnings.filterwarnings("ignore")
 # ==============================================================================
 
 class GR4J(BaseModel):
+    """GR4J Runoff Model
 
+    Args:
+        BaseModel (object): Base model object
+    """
     def __init__(self, area=100, lat=0, params=None):
         """
         GR4J hydrological model for daily simulation
@@ -67,7 +69,7 @@ class GR4J(BaseModel):
         super().__init__(area, lat)
 
         self.params = {
-            "ps0": 1.0,
+            "ps0": 1.0, 
             "rs0": 0.5,
             "x1": 500.0,
             "x2": 3.0,
@@ -81,15 +83,15 @@ class GR4J(BaseModel):
     def __repr__(self):
         text = "\n______________GR4J structure______________\n"
         text += "Catchment properties:\n"
-        text += "    Area (km2): {:.3f}\n".format(self.area)
-        text += "    Latitude  : {:.4f}\n".format(self.lat)
+        text += f"    Area (km2): {self.area:.3f}\n"
+        text += f"    Latitude  : {self.lat:.4f}\n"
         text += "Model Parameters:\n"
-        text += "    x1  > Maximum production capacity (mm)     : {:.3f}\n".format(self.params["x1"])
-        text += "    x2  > Discharge parameter (mm)             : {:.3f}\n".format(self.params["x2"])
-        text += "    x3  > Routing maximum capacity (mm)        : {:.3f}\n".format(self.params["x3"])
-        text += "    x4  > Delay (days)                         : {:.3f}\n".format(self.params["x4"])
-        text += "    ps0 > Initial production storage (ps/x1)   : {:.3f}\n".format(self.params["ps0"])
-        text += "    rs0 > Initial routing storage (rs/x3)      : {:.3f}\n".format(self.params["rs0"])
+        text += f"    x1  > Maximum production capacity (mm)     : {self.params['x1']:.3f}\n"
+        text += f"    x2  > Discharge parameter (mm)             : {self.params['x2']:.3f}\n"
+        text += f"    x3  > Routing maximum capacity (mm)        : {self.params['x3']:.3f}\n"
+        text += f"    x4  > Delay (days)                         : {self.params['x4']:.3f}\n"
+        text += f"    ps0 > Initial production storage (ps/x1)   : {self.params['ps0']:.3f}\n"
+        text += f"    rs0 > Initial routing storage (rs/x3)      : {self.params['rs0']:.3f}\n"
         return text
 
     def __str__(self):
@@ -135,8 +137,8 @@ class GR4J(BaseModel):
         -------
         Simulations : DataFrame
             qt       > Streamflow (qd+qb) at catchment output (m3/s)
-            qd       > Directflow at catchment output (m3/s)
-            qb       > Baseflow at catchment output (m3/s)
+            qd       > Direct flow at catchment output (m3/s)
+            qb       > Base flow at catchment output (m3/s)
             pet      > Potential Evapotranspiration (mm)
             gwe      > Groundwater Exchange (mm)
             ps       > Production storage as a fraction of x1 (-)
@@ -214,25 +216,42 @@ def _reservoirs_evaporation(prec, pet, ps, x1):
     """
     if prec > pet:
         evap = 0.
-        snp = (prec - pet) / x1  # scaled net precipitation
-        snp = min(snp, 13.)
-        tsnp = tanh(snp)  # tanh_scaled_net_precip
+        snp = (prec - pet) / x1     # scaled net precipitation
+        snp = min(snp, 13.)         # minimum (why 13?)
+        tsnp = tanh(snp)            # tanh scaled net precipitation
+
         # reservoir production
         res_prod = ((x1 * (1. - (ps / x1) ** 2.) * tsnp)
                     / (1. + ps / x1 * tsnp))
+
+        # percolation (can be ignored)
+        if ps != 0:
+            perc = ps * (1 - (1 + 4 * ps / (9 * x1)) ** 4) ** (-0.25)
+        else: perc = 0
+
         # routing pattern
-        rout_pat = prec - pet - res_prod
+        rout_pat = perc + (prec - pet) - res_prod   # rout path = Pr
+
     else:
-        sne = (pet - prec) / x1  # scaled net evapotranspiration
-        sne = min(sne, 13.)
-        tsne = tanh(sne)  # tanh_scaled_net_evap
+        sne = (pet - prec) / x1     # scaled net evapotranspiration
+        sne = min(sne, 13.)         # minimum (why 13?)
+        tsne = tanh(sne)            # tanh scaled net evapotranspiration
         ps_div_x1 = (2. - ps / x1) * tsne
-        evap = ps * ps_div_x1 / (1. + (1. - ps / x1) * tsne)
+        evap = ps * ps_div_x1 / (1. + (1. - ps / x1) * tsne)    # evap = Es
 
-        res_prod = 0  # reservoir_production
-        rout_pat = 0  # routing_pattern
+        # percolation (can be ignored)
+        if ps != 0:
+            perc = ps * (1 - (1 + 4 * ps / (9 * x1)) ** 4) ** (-0.25)
+        else: perc = 0
 
-    return evap, res_prod, rout_pat
+        # reservoir production and flow routing
+        res_prod = 0
+        rout_pat = 0
+
+        # routing pattern
+        rout_pat = perc     # if no effective precipitation then the routing is given by percolation
+
+    return evap, res_prod, rout_pat, perc
 
 
 @nb.jit(nopython=True)
@@ -287,7 +306,7 @@ def _compute_unitary_hydrograph(x4):
 @nb.jit(nopython=True)
 def _compute_hydrograph(rout_pat, ouh1, ouh2, uh1, uh2):
     """
-    Daily hydrpgraph for catchment routine
+    Daily hydrograph for catchment routine
     """
     for i in range(0, len(uh1) - 1):
         uh1[i] = uh1[i + 1] + ouh1[i] * rout_pat
@@ -303,8 +322,8 @@ def _compute_hydrograph(rout_pat, ouh1, ouh2, uh1, uh2):
 @nb.jit(nopython=True)
 def _compute_exchange(uh1, rout_sto, x2, x3):
     # groundwater exchange
-    gw_exc = x2 * (rout_sto / x3) ** 3.5
-    rout_sto = max(0, rout_sto + uh1[0] * 0.9 + gw_exc)
+    gw_exc = x2 * (rout_sto / x3) ** 3.5    # F
+    rout_sto = max(0, rout_sto + uh1[0] * 0.9 + gw_exc) # R
     return gw_exc, rout_sto
 
 

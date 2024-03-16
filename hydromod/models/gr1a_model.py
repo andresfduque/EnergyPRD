@@ -19,6 +19,11 @@ ENGREF, Cemagref Antony, France, 323 pp.
 Mouelhi, S., Michel , C., Perrin, C. & Andreassian, V. (2006) Linking stream flow to
 rainfall at the annual time step: the Manabe bucket model revisited. J. Hydrol. 328,
 283-296, doi:10.1016/j.jhydrol.2005.12.022.
+
+Modified by:
+Andres Duque Perez
+Universidad Nacional de Colombia, Sede Medellin
+andresfduque@gmail.com | aduquep@ingenevo.com.co
 """
 
 import numpy as np
