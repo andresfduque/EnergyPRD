@@ -1,4 +1,0 @@
-include lumod/data/attributes.csv
-include lumod/data/example1.csv
-include lumod/data/example2.csv
-include img/lumod_logo.svg

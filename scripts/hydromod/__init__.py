@@ -17,5 +17,5 @@ from lumod.tools.monte_carlo import MonteCarlo
 from lumod.tools.time_series import load_example
 from .fluxes import pet_models
 from . import models
-from . import tools
+from . import utilities
 
